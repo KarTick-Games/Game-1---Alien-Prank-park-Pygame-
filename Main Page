@@ -1,0 +1,641 @@
+# =============================================================================
+# FILE: main.py
+# GAME: Alien Prank Park
+# PURPOSE: Main entry point — handles window, shared drawing, menus
+# =============================================================================
+
+import pygame   # game library
+import sys      # used to exit the program
+import random   # used to randomly place stars
+import math     # used for animations (sin wave)
+import os       # used for save file paths
+import json     # used for persistent unlock data
+
+pygame.init()   # must be called before anything else in pygame
+
+# =============================================================================
+# ██████████████████  DEV / TESTING SETTINGS  ████████████████████████████████
+#
+#   DEVELOPER_MODE = True   →  ALL levels are unlocked regardless of progress.
+#                              Great for testing any level without playing through.
+#
+#   DEVELOPER_MODE = False  →  NORMAL GAME LOGIC:
+#                              Level 1 is always unlocked. Each subsequent level
+#                              unlocks only after the previous one is completed.
+#                              Progress is saved to  level_progress.json  next
+#                              to this file so unlocks persist between sessions.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+DEVELOPER_MODE = False  # <── FLIP THIS LINE: True = dev (all unlocked), False = normal
+# █████████████████████████████████████████████████████████████████████████████
+
+
+# =============================================================================
+# WINDOW SETTINGS
+# Virtual canvas size (what we draw on internally)
+# =============================================================================
+VWIDTH, VHEIGHT = 1000, 600                                      # virtual resolution
+canvas = pygame.Surface((VWIDTH, VHEIGHT))                       # drawing surface
+screen = pygame.display.set_mode((VWIDTH, VHEIGHT), pygame.RESIZABLE)  # actual window
+pygame.display.set_caption("Alien Prank Park")                   # window title
+clock  = pygame.time.Clock()                                     # controls frame rate
+FPS    = 60                                                      # frames per second
+
+
+# =============================================================================
+# SCALING HELPERS
+# =============================================================================
+
+def win_size():
+    return screen.get_size()
+
+def scale_pos(pos):
+    rw, rh = win_size()
+    scale = min(rw / VWIDTH, rh / VHEIGHT)
+    ox = (rw - VWIDTH  * scale) / 2
+    oy = (rh - VHEIGHT * scale) / 2
+    return ((pos[0] - ox) / scale, (pos[1] - oy) / scale)
+
+def blit_canvas():
+    rw, rh = win_size()
+    scale  = min(rw / VWIDTH, rh / VHEIGHT)
+    sw, sh = int(VWIDTH * scale), int(VHEIGHT * scale)
+    scaled = pygame.transform.scale(canvas, (sw, sh))
+    screen.fill((0, 0, 0))
+    screen.blit(scaled, ((rw - sw) // 2, (rh - sh) // 2))
+    pygame.display.flip()
+
+def get_events():
+    evs = []
+    for e in pygame.event.get():
+        if e.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
+            e = pygame.event.Event(e.type, {**e.__dict__, 'pos': scale_pos(e.pos)})
+        evs.append(e)
+    return evs
+
+
+# =============================================================================
+# COLOUR CONSTANTS
+# =============================================================================
+WHITE     = (255, 255, 255)
+BLACK     = (0,   0,   0  )
+GRAY      = (140, 140, 140)
+DARK_GRAY = (80,  80,  80 )
+BLUE      = (70,  130, 255)
+GREEN     = (0,   200, 0  )
+RED       = (220, 60,  60 )
+PINK      = (255, 120, 180)
+ORANGE    = (255, 150, 0  )
+YELLOW    = (255, 220, 0  )
+BROWN     = (139, 90,  43 )
+NAVY      = (20,  30,  100)
+PURPLE    = (140, 60,  200)
+CYAN      = (0,   220, 220)
+DARK_RED  = (160, 0,   0  )
+SKIN      = (255, 200, 150)
+
+
+# =============================================================================
+# FONTS
+# =============================================================================
+title_font   = pygame.font.SysFont(None, 72)
+retro_font   = pygame.font.SysFont(None, 120)
+retro_font2  = pygame.font.SysFont(None, 80)
+btn_font     = pygame.font.SysFont(None, 40)
+level_font   = pygame.font.SysFont(None, 28)
+num_font     = pygame.font.SysFont(None, 50)
+eng_hud_font = pygame.font.SysFont(None, 26)
+small_font   = pygame.font.SysFont(None, 20)
+name_font    = pygame.font.SysFont(None, 22)
+
+
+# =============================================================================
+# SHARED GAME STATE
+# =============================================================================
+current_costume = "alien"
+
+stars = [[random.randint(0, VWIDTH), random.randint(0, VHEIGHT)] for _ in range(120)]
+
+
+# =============================================================================
+# PROGRESS / UNLOCK SYSTEM
+# Saves which levels have been completed to a JSON file beside main.py.
+# Only active when DEVELOPER_MODE = False.
+# =============================================================================
+
+_SAVE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'game_save.json')
+
+# Act 1 has levels 1–10. Extend this list if you add more acts/levels.
+_ALL_LEVEL_NUMBERS = list(range(1, 11))
+
+def _load_progress():
+    """Return a set of completed level numbers loaded from disk."""
+    try:
+        if os.path.exists(_SAVE_PATH):
+            with open(_SAVE_PATH, 'r') as f:
+                data = json.load(f)
+            return set(data.get('completed', []))
+    except Exception:
+        pass
+    return set()
+
+def _save_progress(completed_set):
+    """Write the set of completed level numbers to disk, preserving other keys."""
+    try:
+        # Load existing data first so we don't wipe level9 keys
+        existing = {}
+        if os.path.exists(_SAVE_PATH):
+            try:
+                with open(_SAVE_PATH, 'r') as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = {}
+        existing['completed'] = sorted(completed_set)
+        with open(_SAVE_PATH, 'w') as f:
+            json.dump(existing, f, indent=2)
+    except Exception:
+        pass
+
+def mark_level_complete(level_num):
+    """
+    Call this at the end of every level to record it as completed.
+    Safe to call even in DEVELOPER_MODE (it just won't affect unlock gates).
+    """
+    completed = _load_progress()
+    completed.add(level_num)
+    _save_progress(completed)
+
+def is_level_unlocked(level_num):
+    """
+    Return True if the player may play level_num.
+
+    DEVELOPER_MODE = True  → always True.
+    DEVELOPER_MODE = False → True only if level_num == 1, OR the previous
+                             level number appears in the completed set.
+    """
+    if DEVELOPER_MODE:
+        return True
+    if level_num <= 1:
+        return True
+    completed = _load_progress()
+    return (level_num - 1) in completed
+
+
+# =============================================================================
+# SHARED DRAWING FUNCTIONS
+# =============================================================================
+
+def draw_space():
+    canvas.fill((10, 10, 30))
+    for s in stars:
+        pygame.draw.circle(canvas, WHITE, s, 2)
+        s[1] += 1
+        if s[1] > VHEIGHT:
+            s[0] = random.randint(0, VWIDTH)
+            s[1] = 0
+
+
+def draw_player(x, y, costume=None):
+    c = costume if costume else current_costume
+
+    palettes = {
+        "alien":    dict(body=(50,200,80),  ear=(30,160,50),  eye=(0,255,100), pupil=BLACK,       mouth=(0,180,60),  nose=(0,200,70)),
+        "santa":    dict(body=RED,          ear=DARK_RED,     eye=BLACK,       pupil=WHITE,       mouth=(180,0,0),   nose=ORANGE),
+        "suit":     dict(body=NAVY,         ear=(10,20,80),   eye=WHITE,       pupil=BLACK,       mouth=SKIN,        nose=SKIN),
+        "robot":    dict(body=(170,170,190),ear=(100,100,130),eye=CYAN,        pupil=BLUE,        mouth=(80,80,120), nose=(140,140,160)),
+        "zombie":   dict(body=(120,160,100),ear=(80,120,70),  eye=RED,         pupil=BLACK,       mouth=(60,100,50), nose=(100,140,90)),
+        "football": dict(body=(240,240,240),ear=(200,200,200),eye=BLACK,       pupil=WHITE,       mouth=BLACK,       nose=(180,180,180)),
+        "clown":    dict(body=YELLOW,       ear=ORANGE,       eye=BLUE,        pupil=BLACK,       mouth=RED,         nose=RED),
+        "ninja":    dict(body=(20,20,20),   ear=(10,10,10),   eye=RED,         pupil=BLACK,       mouth=(30,30,30),  nose=(25,25,25)),
+        "princess": dict(body=(255,160,200),ear=PINK,         eye=PURPLE,      pupil=BLACK,       mouth=(220,80,140),nose=PINK),
+    }
+    p = palettes.get(c, palettes["alien"])
+
+    body_col  = p["body"];  ear_col   = p["ear"]
+    eye_col   = p["eye"];   pupil_col = p["pupil"]
+    mouth_col = p["mouth"]; nose_col  = p["nose"]
+
+    pygame.draw.polygon(canvas, ear_col, [(x+2,y-12),(x+2,y),(x+14,y)])
+    pygame.draw.polygon(canvas, ear_col, [(x+38,y-12),(x+38,y),(x+26,y)])
+    pygame.draw.rect(canvas, body_col, (x, y, 40, 40))
+
+    if c == "suit":
+        pygame.draw.rect(canvas, WHITE, (x+15, y+20, 10, 20))
+        pygame.draw.polygon(canvas, RED, [(x+19,y+22),(x+16,y+32),(x+22,y+32)])
+    elif c == "santa":
+        pygame.draw.rect(canvas, WHITE,  (x,    y+28, 40, 5))
+        pygame.draw.rect(canvas, YELLOW, (x+16, y+27,  8, 7))
+    elif c == "football":
+        n_surf = small_font.render("9", True, RED)
+        canvas.blit(n_surf, (x+16, y+16))
+        pygame.draw.line(canvas, RED, (x,y+10), (x+40,y+10), 2)
+    elif c == "clown":
+        for by in [y+12, y+22, y+32]:
+            pygame.draw.circle(canvas, RED, (x+20, by), 4)
+    elif c == "robot":
+        pygame.draw.rect(canvas, (80,80,120), (x+4, y+22, 32, 14), 1)
+        pygame.draw.circle(canvas, YELLOW, (x+20, y+30), 4)
+    elif c == "zombie":
+        pygame.draw.line(canvas, DARK_RED, (x+5,  y+15), (x+18, y+30), 2)
+        pygame.draw.line(canvas, DARK_RED, (x+25, y+18), (x+35, y+35), 2)
+    elif c == "ninja":
+        pygame.draw.rect(canvas, RED, (x, y+22, 40, 4))
+    elif c == "princess":
+        pygame.draw.polygon(canvas, YELLOW,
+            [(x+10,y+4),(x+14,y-4),(x+20,y+2),(x+26,y-4),(x+30,y+4)])
+        pygame.draw.circle(canvas, WHITE, (x+8,  y+12), 2)
+        pygame.draw.circle(canvas, WHITE, (x+32, y+16), 2)
+
+    for ex in [x+13, x+27]:
+        pygame.draw.circle(canvas, eye_col,   (ex, y+13), 6)
+        pygame.draw.circle(canvas, pupil_col, (ex, y+13), 3)
+    pygame.draw.circle(canvas, nose_col, (x+20, y+22), 3)
+    pygame.draw.arc(canvas, mouth_col,
+                    pygame.Rect(x+10, y+24, 20, 10), 3.14, 0, 2)
+
+    if c == "alien":
+        for ax, ay in [(x+10, y-2), (x+30, y-2)]:
+            tip_x = ax-5 if ax < x+20 else ax+5
+            pygame.draw.line(canvas, ear_col, (ax,ay), (tip_x, ay-14), 2)
+            pygame.draw.circle(canvas, YELLOW, (tip_x, ay-15), 3)
+    elif c == "santa":
+        pygame.draw.polygon(canvas, RED,   [(x,y-14),(x+40,y-14),(x+20,y-30)])
+        pygame.draw.rect(canvas,   WHITE,  (x-2, y-16, 44, 6))
+        pygame.draw.circle(canvas, WHITE,  (x+20, y-30), 4)
+    elif c == "clown":
+        for i, col in enumerate([RED, ORANGE, YELLOW, GREEN, BLUE]):
+            pygame.draw.circle(canvas, col, (x-8+i*14, y-6), 7)
+    elif c == "robot":
+        pygame.draw.line(canvas,   GRAY,   (x+20, y), (x+20, y-12), 2)
+        pygame.draw.circle(canvas, YELLOW, (x+20, y-13), 4)
+    elif c == "ninja":
+        pygame.draw.rect(canvas, RED, (x, y-4, 40, 5))
+    elif c == "zombie":
+        pygame.draw.line(canvas, DARK_RED, (x+10, y-2), (x+18, y+4), 2)
+
+
+def draw_button(rect, text, col=BLUE):
+    pygame.draw.rect(canvas, col, rect, border_radius=8)
+    txt = btn_font.render(text, True, WHITE)
+    canvas.blit(txt, (rect.centerx - txt.get_width()//2,
+                      rect.centery - txt.get_height()//2))
+
+
+# =============================================================================
+# COSTUME MENU SCREEN
+# =============================================================================
+
+def costume_menu():
+    global current_costume
+
+    costumes = [
+        ("alien","Alien"), ("santa","Santa"), ("suit","Suit"),
+        ("robot","Robot"), ("zombie","Zombie"), ("football","Football"),
+        ("clown","Clown"), ("ninja","Ninja"), ("princess","Princess"),
+    ]
+
+    cols  = 5;  box_w = 130;  box_h = 130;  pad = 18
+    total_w   = cols * box_w + (cols-1) * pad
+    start_x   = (VWIDTH  - total_w) // 2
+    start_y   = 200
+
+    boxes = []
+    for i, (key, label) in enumerate(costumes):
+        r, ci = divmod(i, cols)
+        rx = start_x + ci*(box_w+pad)
+        ry = start_y + r*(box_h+pad+20)
+        boxes.append((key, label, pygame.Rect(rx, ry, box_w, box_h)))
+
+    while True:
+        clock.tick(FPS)
+        draw_space()
+
+        title = title_font.render("CHOOSE COSTUME", True, WHITE)
+        canvas.blit(title, (VWIDTH//2 - title.get_width()//2, 120))
+
+        for key, label, rect in boxes:
+            border_col = YELLOW if key == current_costume else GRAY
+            pygame.draw.rect(canvas, (30,30,60), rect, border_radius=8)
+            pygame.draw.rect(canvas, border_col, rect, 3, border_radius=8)
+            draw_player(rect.x + (box_w-40)//2, rect.y+18, costume=key)
+            lbl = name_font.render(label, True, WHITE)
+            canvas.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.bottom-22))
+
+        for event in get_events():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for key, label, rect in boxes:
+                    if rect.collidepoint(event.pos):
+                        current_costume = key
+                        return
+
+        blit_canvas()
+
+
+# =============================================================================
+# HOME SCREEN
+# =============================================================================
+
+def home_screen():
+    play_btn    = pygame.Rect(VWIDTH//2-100, 300, 200, 55)
+    costume_btn = pygame.Rect(VWIDTH//2-100, 365, 200, 55)
+    quit_btn    = pygame.Rect(VWIDTH//2-100, 430, 200, 55)
+
+    while True:
+        clock.tick(FPS)
+        draw_space()
+
+        title = title_font.render("ALIEN PRANK PARK", True, WHITE)
+        canvas.blit(title, (VWIDTH//2 - title.get_width()//2, 120))
+        draw_player(VWIDTH//2 - 20, 200)
+
+        draw_button(play_btn,    "PLAY")
+        draw_button(costume_btn, "COSTUME")
+        draw_button(quit_btn,    "QUIT")
+
+        # Dev mode indicator badge (top-left corner)
+        if DEVELOPER_MODE:
+            dev_surf = small_font.render("⚙ DEV MODE — All levels unlocked", True, ORANGE)
+            pygame.draw.rect(canvas, (40, 20, 0),
+                             (8, 8, dev_surf.get_width()+16, dev_surf.get_height()+8),
+                             border_radius=4)
+            pygame.draw.rect(canvas, ORANGE,
+                             (8, 8, dev_surf.get_width()+16, dev_surf.get_height()+8),
+                             1, border_radius=4)
+            canvas.blit(dev_surf, (16, 12))
+
+        for event in get_events():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if play_btn.collidepoint(event.pos):
+                    level_select()
+                if costume_btn.collidepoint(event.pos):
+                    costume_menu()
+                if quit_btn.collidepoint(event.pos):
+                    pygame.quit(); sys.exit()
+
+        blit_canvas()
+
+
+# =============================================================================
+# LEVEL SELECT SCREEN
+# =============================================================================
+
+def level_select():
+    from Level1  import level_1
+    from Level2  import level_2
+    from Level3  import level_3
+    from Level4  import level_4
+    from Level5  import level_5
+    from Level6  import level_6
+    from Level7  import level_7
+    from Level8  import level_8
+    from Level9  import level_9
+    from Level10 import level_10
+
+    # ── Act / level data ──────────────────────────────────────────────────
+    # NOTE: 'unlocked' in the tuple below is the BASE unlock state used only
+    #       in DEVELOPER_MODE=False to know which levels *can* be in Act 1 at all.
+    #       Actual per-level gating is handled by is_level_unlocked().
+    ACTS = [
+        {
+            'name':   'ACT 1',
+            'sub':    'PLANET ZORVEX',
+            'col':    (0, 180, 255),
+            'glow':   (0, 80, 140),
+            'locked': False,
+            'levels': [
+                (1,  'WELCOME HOME',   True ),
+                (2,  'FAKE CITY',      True ),
+                (3,  'ILLEGALBLACK',   True ),
+                (4,  'BACK TO SCHOOL', True ),
+                (5,  'ALIEN OFFICE',   True ),
+                (6,  'ESCAPE THE 9-5', True ),
+                (7,  'OLI LABS',       True ),
+                (8,  'I AM LABOUR',    True ),
+                (9,  'FLY SCHOOL',     True ),
+                (10, 'BYE BYE HOME',   True ),
+            ],
+        },
+        {
+            'name': 'ACT 2', 'sub': 'MOON OF CHAOS',
+            'col': (200, 80, 255), 'glow': (80, 20, 120),
+            'locked': True,
+            'levels': [(i,'???',False) for i in range(11,21)],
+        },
+        {
+            'name': 'ACT 3', 'sub': 'SPACE STATION X',
+            'col': (255, 120, 0), 'glow': (120, 50, 0),
+            'locked': True,
+            'levels': [(i,'???',False) for i in range(21,31)],
+        },
+        {
+            'name': 'ACT 4', 'sub': 'BLACK HOLE BASE',
+            'col': (255, 60, 100), 'glow': (100, 20, 40),
+            'locked': True,
+            'levels': [(i,'???',False) for i in range(31,41)],
+        },
+        {
+            'name': 'ACT 5', 'sub': 'THE VOID',
+            'col': (80, 255, 160), 'glow': (20, 100, 60),
+            'locked': True,
+            'levels': [(i,'???',False) for i in range(41,51)],
+        },
+    ]
+
+    level_fns = {
+        1: level_1,  2: level_2,  3: level_3,  4: level_4,  5: level_5,
+        6: level_6,  7: level_7,  8: level_8,  9: level_9, 10: level_10,
+    }
+
+    selected_act = 0
+    blink_timer  = 0
+    back_btn     = pygame.Rect(20, 540, 110, 38)
+
+    # ── Reset-progress button (only shown in normal mode) ─────────────────
+    reset_btn = pygame.Rect(VWIDTH - 200, 540, 180, 38)
+
+    while True:
+        clock.tick(FPS)
+        blink_timer += 1
+        draw_space()
+
+        # Screen title
+        t = title_font.render("SELECT LEVEL", True, WHITE)
+        canvas.blit(t, (VWIDTH//2 - t.get_width()//2, 18))
+
+        # Dev mode badge
+        if DEVELOPER_MODE:
+            dev_surf = small_font.render("⚙ DEV MODE — All levels unlocked", True, ORANGE)
+            pygame.draw.rect(canvas, (40, 20, 0),
+                             (8, 8, dev_surf.get_width()+16, dev_surf.get_height()+8),
+                             border_radius=4)
+            pygame.draw.rect(canvas, ORANGE,
+                             (8, 8, dev_surf.get_width()+16, dev_surf.get_height()+8),
+                             1, border_radius=4)
+            canvas.blit(dev_surf, (16, 12))
+
+        # -- Act tabs -------------------------------------------------------
+        tab_w = 170;  tab_gap = 8
+        total_tabs   = len(ACTS)
+        tabs_total_w = total_tabs * tab_w + (total_tabs-1) * tab_gap
+        tab_start_x  = VWIDTH//2 - tabs_total_w//2
+        act_rects    = []
+
+        for ai, act in enumerate(ACTS):
+            tx       = tab_start_x + ai*(tab_w+tab_gap)
+            tab_rect = pygame.Rect(tx, 65, tab_w, 52)
+            act_rects.append(tab_rect)
+
+            is_sel   = (ai == selected_act)
+            base_col = act['col'] if not act['locked'] else DARK_GRAY
+
+            if is_sel and not act['locked']:
+                for gd in range(4, 0, -1):
+                    gc3 = tuple(min(255, c + gd*15) for c in act['glow'])
+                    pygame.draw.rect(canvas, gc3,
+                        (tx-gd*2, 65-gd*2, tab_w+gd*4, 52+gd*4), border_radius=8)
+
+            pygame.draw.rect(canvas, base_col if is_sel else (30,30,50), tab_rect, border_radius=7)
+            pygame.draw.rect(canvas,
+                (255,255,255) if is_sel else (base_col[0]//2, base_col[1]//2, base_col[2]//2),
+                tab_rect, 2, border_radius=7)
+
+            an = btn_font.render(act['name'], True, WHITE if is_sel else GRAY)
+            canvas.blit(an, (tab_rect.centerx - an.get_width()//2, tab_rect.y+5))
+
+            if act['locked']:
+                lk = small_font.render("🔒 LOCKED", True, GRAY)
+                canvas.blit(lk, (tab_rect.centerx - lk.get_width()//2, tab_rect.y+28))
+            else:
+                sub = small_font.render(act['sub'], True, WHITE if is_sel else (150,150,150))
+                canvas.blit(sub, (tab_rect.centerx - sub.get_width()//2, tab_rect.y+30))
+
+        # -- Level grid for selected act ------------------------------------
+        act    = ACTS[selected_act]
+        levels = act['levels']
+        CELL_W = 170;  CELL_H = 80;  COLS = 5
+        grid_total_w = COLS*CELL_W + (COLS-1)*10
+        gx0 = VWIDTH//2 - grid_total_w//2
+        gy0 = 140
+
+        level_rects = []
+
+        for li, (lnum, lname, in_act) in enumerate(levels):
+            col_i = li % COLS;  row_i = li // COLS
+            lx    = gx0 + col_i*(CELL_W+10)
+            ly    = gy0 + row_i*(CELL_H+12)
+            lrect = pygame.Rect(lx, ly, CELL_W, CELL_H)
+
+            # Determine actual unlock state using the system
+            actually_unlocked = in_act and not act['locked'] and is_level_unlocked(lnum)
+            level_rects.append((lnum, lname, actually_unlocked, lrect))
+
+            if act['locked'] or not actually_unlocked:
+                # Locked cell
+                pygame.draw.rect(canvas, (25,25,40), lrect, border_radius=8)
+                pygame.draw.rect(canvas, (50,50,70), lrect, 2, border_radius=8)
+
+                if in_act and not act['locked'] and not DEVELOPER_MODE:
+                    # Show "Complete level X first" hint
+                    prev = lnum - 1
+                    lock_hint = small_font.render(f"Complete L{prev} first", True, (90,90,110))
+                    canvas.blit(lock_hint, (lrect.centerx - lock_hint.get_width()//2,
+                                            lrect.centery + 10))
+                    lk2 = small_font.render("🔒", True, (80,80,100))
+                    canvas.blit(lk2, (lrect.centerx - lk2.get_width()//2, lrect.centery - 14))
+                else:
+                    lk2 = small_font.render("🔒", True, (80,80,100))
+                    canvas.blit(lk2, (lrect.centerx - lk2.get_width()//2, lrect.centery - 8))
+                    ln2 = small_font.render("LOCKED", True, (70,70,90))
+                    canvas.blit(ln2, (lrect.centerx - ln2.get_width()//2, lrect.centery + 10))
+            else:
+                # Unlocked cell — glowing, pulsing border
+                pulse = 0.7 + 0.3*math.sin(blink_timer*0.06 + li*0.5)
+                gc4   = tuple(int(c*pulse) for c in act['col'])
+
+                for gd in range(3, 0, -1):
+                    pygame.draw.rect(canvas, tuple(c//(gd+1) for c in act['col']),
+                        (lx-gd, ly-gd, CELL_W+gd*2, CELL_H+gd*2), border_radius=10)
+
+                pygame.draw.rect(canvas, (20,20,40), lrect, border_radius=8)
+                pygame.draw.rect(canvas, gc4,        lrect, 3, border_radius=8)
+
+                nf = num_font.render(str(lnum), True, act['col'])
+                canvas.blit(nf, (lrect.x+12, lrect.y+8))
+
+                nmf = eng_hud_font.render(lname, True, WHITE)
+                canvas.blit(nmf, (lrect.x+12, lrect.y+48))
+
+                at = small_font.render(f"{act['name']}", True,
+                    tuple(min(255, c+60) for c in act['col']))
+                canvas.blit(at, (lrect.right-at.get_width()-8, lrect.y+8))
+
+                # Show a ✓ badge if this level is already completed
+                if not DEVELOPER_MODE and lnum in _load_progress():
+                    ck = small_font.render("✓", True, GREEN)
+                    canvas.blit(ck, (lrect.right - ck.get_width() - 6, lrect.bottom - ck.get_height() - 4))
+
+        # -- Act description banner -----------------------------------------
+        desc_y = gy0 + 2*(CELL_H+12) + 8
+        pygame.draw.rect(canvas, (15,15,35), (gx0, desc_y, grid_total_w, 36), border_radius=6)
+
+        if not act['locked']:
+            pygame.draw.rect(canvas, act['col'], (gx0, desc_y, grid_total_w, 36), 2, border_radius=6)
+            desc = btn_font.render(f"🌌  {act['name']} — {act['sub']}", True, act['col'])
+            canvas.blit(desc, (VWIDTH//2 - desc.get_width()//2, desc_y+8))
+        else:
+            lk3 = btn_font.render(
+                f"🔒  {act['name']} — {act['sub']}  (Complete previous acts to unlock)",
+                True, DARK_GRAY)
+            canvas.blit(lk3, (VWIDTH//2 - lk3.get_width()//2, desc_y+8))
+
+        # Back button
+        draw_button(back_btn, "◀ BACK")
+
+        # Reset progress button (normal mode only, so players can restart)
+        if not DEVELOPER_MODE:
+            mx_now, my_now = pygame.mouse.get_pos()
+            r_hov = reset_btn.collidepoint(scale_pos((mx_now, my_now)))
+            pygame.draw.rect(canvas, (80,20,20) if r_hov else (50,10,10),
+                             reset_btn, border_radius=6)
+            pygame.draw.rect(canvas, RED, reset_btn, 2, border_radius=6)
+            rt = small_font.render("Reset Progress", True, WHITE)
+            canvas.blit(rt, (reset_btn.centerx - rt.get_width()//2,
+                              reset_btn.centery - rt.get_height()//2))
+
+        # -- Events ---------------------------------------------------------
+        for event in get_events():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mpos = event.pos
+
+                if back_btn.collidepoint(mpos):
+                    return home_screen()
+
+                # Reset progress (normal mode only)
+                if not DEVELOPER_MODE and reset_btn.collidepoint(mpos):
+                    _save_progress(set())   # wipe saved data
+
+                for ai, tr in enumerate(act_rects):
+                    if tr.collidepoint(mpos):
+                        selected_act = ai
+
+                for lnum, lname, actually_unlocked, lrect in level_rects:
+                    if lrect.collidepoint(mpos) and actually_unlocked and not act['locked']:
+                        fn = level_fns.get(lnum)
+                        if fn:
+                            fn()
+
+        blit_canvas()
+
+
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
+if __name__ == "__main__":
+    home_screen()
