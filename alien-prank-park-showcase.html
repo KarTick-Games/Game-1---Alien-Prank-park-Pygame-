@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alien Prank Park — Project Showcase</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cyan: #00eaff;
+    --green: #00ff88;
+    --purple: #8c3fff;
+    --orange: #ff7a00;
+    --dark: #07080f;
+    --card: #0d1020;
+    --border: #1a2040;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--dark);
+    color: #c8d0e8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    overflow-x: hidden;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Stars background ── */
+  #stars {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    overflow: hidden;
+  }
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle var(--dur) infinite alternate;
+    opacity: var(--op);
+  }
+  @keyframes twinkle { to { opacity: 0.05; } }
+
+  /* ── Layout ── */
+  .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Hero ── */
+  header {
+    position: relative;
+    padding: 80px 0 60px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .tag-line {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    animation: fadeUp 0.6s ease both;
+  }
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(32px, 6vw, 72px);
+    font-weight: 900;
+    line-height: 1.0;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--green) 50%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fadeUp 0.7s 0.1s ease both;
+  }
+  .subtitle {
+    margin-top: 16px;
+    font-size: 18px;
+    color: #6a7699;
+    font-weight: 300;
+    letter-spacing: 2px;
+    animation: fadeUp 0.7s 0.2s ease both;
+  }
+  .badges {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    margin-top: 28px;
+    animation: fadeUp 0.7s 0.3s ease both;
+  }
+  .badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .badge-cyan   { border-color: var(--cyan);   color: var(--cyan);   }
+  .badge-green  { border-color: var(--green);  color: var(--green);  }
+  .badge-orange { border-color: var(--orange); color: var(--orange); }
+  .badge-purple { border-color: var(--purple); color: var(--purple); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Section headings ── */
+  section { padding: 60px 0; border-bottom: 1px solid var(--border); }
+  .sec-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 6px;
+  }
+  .sec-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #edf0ff;
+    margin-bottom: 32px;
+  }
+
+  /* ── Tech stack grid ── */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .tech-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .tech-card:hover { border-color: var(--cyan); transform: translateY(-3px); }
+  .tech-icon { font-size: 28px; margin-bottom: 8px; }
+  .tech-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #edf0ff;
+    margin-bottom: 4px;
+  }
+  .tech-desc { font-size: 13px; color: #5a6480; }
+
+  /* ── Feature list ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
+  .feature-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .fi-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+  .fi-text strong { display: block; color: #edf0ff; font-size: 15px; margin-bottom: 2px; }
+  .fi-text span { font-size: 13px; color: #5a6480; }
+
+  /* ── Architecture diagram ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 640px) { .arch-grid { grid-template-columns: 1fr; } }
+  .arch-node {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-node::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--cyan));
+  }
+  .arch-node-icon { font-size: 26px; margin-bottom: 8px; }
+  .arch-node-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #edf0ff;
+    margin-bottom: 4px;
+  }
+  .arch-node-desc { font-size: 12px; color: #4a5578; }
+  .arr {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--cyan); font-size: 20px;
+    align-self: center;
+  }
+
+  /* ── Stats bar ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 16px;
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 34px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--cyan), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat-label { font-size: 12px; color: #5a6480; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 40px 0;
+    text-align: center;
+    font-size: 13px;
+    color: #2a3050;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  footer a { color: var(--cyan); text-decoration: none; }
+
+  /* ── No-select overlay on whole page ── */
+  ::selection { background: transparent; }
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<div class="wrap">
+
+  <!-- ════════════ HERO ════════════ -->
+  <header>
+    <div class="tag-line">🚀 Portfolio Project · Python · Pygame</div>
+    <h1>ALIEN PRANK PARK</h1>
+    <div class="subtitle">A multi-level 2D puzzle-platformer game built from scratch</div>
+    <div class="badges">
+      <span class="badge badge-cyan">Python 3</span>
+      <span class="badge badge-green">Pygame</span>
+      <span class="badge badge-orange">10 Levels</span>
+      <span class="badge badge-purple">Save System</span>
+      <span class="badge badge-cyan">9 Costumes</span>
+      <span class="badge badge-green">Responsive UI</span>
+    </div>
+  </header>
+
+  <!-- ════════════ STATS ════════════ -->
+  <section>
+    <div class="sec-label">At a Glance</div>
+    <div class="sec-title">Project Stats</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num">10</div><div class="stat-label">Levels Built</div></div>
+      <div class="stat-card"><div class="stat-num">9</div><div class="stat-label">Costumes</div></div>
+      <div class="stat-card"><div class="stat-num">5</div><div class="stat-label">Acts Planned</div></div>
+      <div class="stat-card"><div class="stat-num">60</div><div class="stat-label">FPS Target</div></div>
+      <div class="stat-card"><div class="stat-num">120</div><div class="stat-label">Animated Stars</div></div>
+      <div class="stat-card"><div class="stat-num">1</div><div class="stat-label">Developer</div></div>
+    </div>
+  </section>
+
+  <!-- ════════════ TECH STACK ════════════ -->
+  <section>
+    <div class="sec-label">Built With</div>
+    <div class="sec-title">Tech Stack</div>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-icon">🐍</div>
+        <div class="tech-name">Python 3</div>
+        <div class="tech-desc">Core language for all game logic, state management, and file I/O</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🎮</div>
+        <div class="tech-name">Pygame</div>
+        <div class="tech-desc">Rendering, input handling, frame-rate control, and surface management</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">💾</div>
+        <div class="tech-name">JSON</div>
+        <div class="tech-desc">Persistent save system — stores completed levels across sessions</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">📐</div>
+        <div class="tech-name">Math / Sin Waves</div>
+        <div class="tech-desc">Smooth pulsing animations on level-select and UI elements</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🔀</div>
+        <div class="tech-name">Random</div>
+        <div class="tech-desc">Procedural star field generation for the space background</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🗂️</div>
+        <div class="tech-name">OS / Module System</div>
+        <div class="tech-desc">Dynamic level imports and cross-platform save-file pathing</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ FEATURES ════════════ -->
+  <section>
+    <div class="sec-label">What I Built</div>
+    <div class="sec-title">Core Features</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="fi-icon">🔓</div>
+        <div class="fi-text">
+          <strong>Progressive Unlock System</strong>
+          <span>Levels unlock sequentially; state persists via JSON save file between sessions</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">⚙️</div>
+        <div class="fi-text">
+          <strong>Developer Mode Toggle</strong>
+          <span>Single flag unlocks all levels instantly — designed for rapid iteration and testing</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">📐</div>
+        <div class="fi-text">
+          <strong>Resolution-Independent Rendering</strong>
+          <span>Virtual canvas scales to any window size with letterboxing and coordinate remapping</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">🎭</div>
+        <div class="fi-text">
+          <strong>9-Costume Character System</strong>
+          <span>Palette-driven draw_player() renders every outfit from a single unified function</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">🌌</div>
+        <div class="fi-text">
+          <strong>Animated Space Background</strong>
+          <span>120 procedurally placed stars scroll downward and loop, creating depth parallax</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">🗂️</div>
+        <div class="fi-text">
+          <strong>Modular Level Architecture</strong>
+          <span>Each level lives in its own file (Level1.py … Level10.py), imported dynamically</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">🌍</div>
+        <div class="fi-text">
+          <strong>5-Act World Map</strong>
+          <span>Tabbed act selector with glowing unlock states, completion badges, and lore names</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="fi-icon">🔄</div>
+        <div class="fi-text">
+          <strong>Progress Reset</strong>
+          <span>One-click progress wipe for replaying the full experience from scratch</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ ARCHITECTURE ════════════ -->
+  <section>
+    <div class="sec-label">System Design</div>
+    <div class="sec-title">Architecture Overview</div>
+    <div class="arch-grid">
+      <div class="arch-node" style="--accent: var(--cyan)">
+        <div class="arch-node-icon">🏠</div>
+        <div class="arch-node-name">home_screen()</div>
+        <div class="arch-node-desc">Entry point · Routes to level select or costume menu</div>
+      </div>
+      <div class="arch-node" style="--accent: var(--purple)">
+        <div class="arch-node-icon">🎽</div>
+        <div class="arch-node-name">costume_menu()</div>
+        <div class="arch-node-desc">9-costume picker · Updates global current_costume</div>
+      </div>
+      <div class="arch-node" style="--accent: var(--green)">
+        <div class="arch-node-icon">🗺️</div>
+        <div class="arch-node-name">level_select()</div>
+        <div class="arch-node-desc">Act tabs + level grid · Calls is_level_unlocked() gate</div>
+      </div>
+      <div class="arch-node" style="--accent: var(--orange)">
+        <div class="arch-node-icon">💾</div>
+        <div class="arch-node-name">Save System</div>
+        <div class="arch-node-desc">_load_progress / _save_progress · JSON persistence layer</div>
+      </div>
+      <div class="arch-node" style="--accent: var(--cyan)">
+        <div class="arch-node-icon">📏</div>
+        <div class="arch-node-name">Scaling Engine</div>
+        <div class="arch-node-desc">scale_pos / blit_canvas · Virtual 1000×600 canvas</div>
+      </div>
+      <div class="arch-node" style="--accent: var(--purple)">
+        <div class="arch-node-icon">🎮</div>
+        <div class="arch-node-name">Level Modules</div>
+        <div class="arch-node-desc">Level1–10 · Each self-contained, calls mark_level_complete()</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ LEARNING ════════════ -->
+  <section>
+    <div class="sec-label">Reflection</div>
+    <div class="sec-title">What I Learned</div>
+    <div class="feature-grid">
+      <div class="feature-item" style="border-left-color: var(--cyan)">
+        <div class="fi-icon">🧩</div>
+        <div class="fi-text">
+          <strong>Game Loop Architecture</strong>
+          <span>Managing frame rate, event polling, drawing order, and state transitions cleanly</span>
+        </div>
+      </div>
+      <div class="feature-item" style="border-left-color: var(--purple)">
+        <div class="fi-icon">📦</div>
+        <div class="fi-text">
+          <strong>Modular Code Design</strong>
+          <span>Splitting a large project into focused files that share state through a central module</span>
+        </div>
+      </div>
+      <div class="feature-item" style="border-left-color: var(--orange)">
+        <div class="fi-icon">📐</div>
+        <div class="fi-text">
+          <strong>Coordinate Transforms</strong>
+          <span>Building a resolution-independent renderer using affine scale + offset math</span>
+        </div>
+      </div>
+      <div class="feature-item" style="border-left-color: var(--green)">
+        <div class="fi-icon">💡</div>
+        <div class="fi-text">
+          <strong>UX & Developer Tooling</strong>
+          <span>Building toggle-based dev modes and reset utilities to speed up iteration cycles</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ FOOTER ════════════ -->
+  <footer>
+    <p>ALIEN PRANK PARK &nbsp;·&nbsp; Built with Python + Pygame &nbsp;·&nbsp; Portfolio Project</p>
+    <p style="margin-top:8px; color: #1a2040;">Source code is proprietary — display only</p>
+  </footer>
+
+</div><!-- /wrap -->
+
+<script>
+  // ── Stars ──
+  const starsEl = document.getElementById('stars');
+  for (let i = 0; i < 140; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2.5 + 0.5;
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${Math.random()*100}%;
+      top:${Math.random()*100}%;
+      --dur:${Math.random()*3+2}s;
+      --op:${Math.random()*0.6+0.1};
+    `;
+    starsEl.appendChild(s);
+  }
+
+  // ── Block all copy mechanisms ──
+  document.addEventListener('copy',      e => e.preventDefault());
+  document.addEventListener('cut',       e => e.preventDefault());
+  document.addEventListener('dragstart', e => e.preventDefault());
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && ['c','a','u','s'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+    }
+    // Block F12 / DevTools shortcuts
+    if (e.key === 'F12') e.preventDefault();
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+    }
+  });
+</script>
+</body>
+</html>
