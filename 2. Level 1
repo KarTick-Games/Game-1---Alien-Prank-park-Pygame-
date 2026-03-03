@@ -309,10 +309,9 @@ The HUD hint changes automatically based on game state:
 
 ---
 
-## 🎯 What To Say In An Interview
+## 🎯
 
 > *"Level 1 uses a state-machine approach to sequence two pranks — flag variables track which pranks have triggered, and each frame checks those flags to decide what to animate. The moving platform uses a simple bounce system with direction inversion at screen edges. I also built an animated alien TV presenter entirely from pygame primitives — circles, ellipses, polygons — with blinking eyes, swaying antennas, and a speech bubble that cycles through scripted lines. The news ticker uses canvas clipping to contain scrolling text inside the TV frame."*
 
 ---
 
-*Built by Kartick · Alien Prank Park · Level 1 — Welcome Home · Python + Pygame*
