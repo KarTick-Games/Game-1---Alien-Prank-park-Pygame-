@@ -250,7 +250,7 @@ if fn:
 
 ---
 
-## 🎯 What To Say In An Interview
+## 🎯
 
 > *"I built a 2D game in Python using Pygame. The main.py handles the entire engine layer — a virtual canvas scaling system so the game is resolution-independent, a JSON-based save system that persists level progress between sessions, and a palette-driven character renderer that draws 9 different costumes from a single function using dictionary lookups. I also added a developer mode toggle so I could test any level instantly during development."*
 
