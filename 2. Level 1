@@ -1,0 +1,318 @@
+# 🛸 Alien Prank Park — `Level1.py` Breakdown
+
+> **Level 1 — "WELCOME HOME" · Act 1: Planet Zorvex**
+> For interviews & quick revision — everything I built in this file, explained clearly.
+
+---
+
+## 📌 What Is This File?
+
+`Level1.py` is the **first playable level** of the game. The player must reach the blue door at the far right, but two pranks trigger along the way to trick them.
+
+It imports all shared tools from `main.py` (canvas, clock, fonts, colours, draw functions) and runs its own self-contained game loop.
+
+---
+
+## 🎯 Level Objective
+
+```
+Start (left) ──► jump up platforms ──► reach the BLUE DOOR (right side)
+```
+
+Simple goal — but two pranks make it harder than it looks.
+
+---
+
+## 🧱 File Structure At a Glance
+
+```
+level_1()
+ ├── Import engine (canvas, clock, colours, fonts, draw functions from main.py)
+ ├── Player setup           → pygame.Rect, vel_y, gravity, on_ground
+ ├── Platform setup         → floor, plank1, plank2 (prank), plank3
+ ├── Door setup             → position, animation phase
+ ├── Game state flags       → prank done? game over? level complete?
+ ├── Animation variables    → win timer, death pieces, fireworks
+ ├── UI buttons             → HOME, RETRY, NEXT LEVEL
+ ├── News ticker data       → 10 alien headlines that scroll across the TV
+ ├── Alien TV presenter     → draw_alien_reader() — animated character
+ └── MAIN GAME LOOP (while True)
+      ├── Draw background   → sky, buildings, planet, stars, TV, floor
+      ├── Handle events     → keyboard, mouse clicks (HOME/RETRY/NEXT)
+      ├── Player movement   → A/D keys + SPACE to jump
+      ├── Physics           → gravity, vel_y, collision detection
+      ├── Prank 1 logic     → slide platform away
+      ├── Prank 2 logic     → platform falls + slides, door teleports
+      ├── Win/Death check   → touched door = win, hit ceiling = dead
+      ├── Win animation     → player shrinks into door
+      ├── Death animation   → player explodes into pieces
+      ├── Level complete    → fireworks + LEVEL CLEAR screen
+      └── Draw HUD          → level info + hint text + HOME button
+```
+
+---
+
+## 🔗 How This File Connects to `main.py`
+
+```python
+import Main_Alien_Prank_park as engine
+
+canvas      = engine.canvas       # draw surface
+clock       = engine.clock        # frame rate controller
+draw_player = engine.draw_player  # draws the character in current costume
+draw_button = engine.draw_button  # draws a UI button
+blit_canvas = engine.blit_canvas  # pushes canvas to the real window
+get_events  = engine.get_events   # returns events with scaled mouse coords
+```
+
+Everything shared lives in `main.py`. This level just **borrows** it — no duplication.
+
+At the end of the level, it calls:
+```python
+engine.mark_level_complete(1)   # saves level 1 as done → unlocks level 2
+```
+
+---
+
+## 🧑‍🎮 Player Setup
+
+```python
+player    = pygame.Rect(60, 420, 40, 40)  # x, y, width, height
+vel_y     = 0        # vertical speed (positive = falling)
+gravity   = 0.7      # added to vel_y every frame when airborne
+on_ground = False    # only True when standing on something
+```
+
+**Physics every frame:**
+```python
+vel_y    += gravity      # accelerate downward
+player.y += int(vel_y)   # move player
+```
+
+**Jump:**
+```python
+if keys[pygame.K_SPACE] and on_ground:
+    vel_y = -14    # negative = upward
+```
+
+---
+
+## 🏗️ Platform Setup
+
+| Variable | Description | Special Behaviour |
+|---|---|---|
+| `floor` | Full-width ground | Always solid |
+| `plank1` | First step-up platform | Always solid |
+| `plank2` | The **prank platform** | Slides off, falls, then bounces |
+| `plank3` | High platform near door | Disappears in prank 1 |
+
+---
+
+## 😈 Prank 1 — "The Slide Away"
+
+**Trigger:** Player jumps OFF `plank2` (was on it, now rising)
+
+**What happens:**
+1. `plank3` (the high platform) vanishes instantly
+2. `plank2` slides off the left edge at 18px/frame
+3. The door hides too
+4. Player falls back to the floor — no way up!
+
+**Then (once player lands safely):** `plank2` and the door are quietly restored to their original positions.
+
+```python
+# Trigger detection — was on plank2, now airborne and rising
+if not first_prank_done and was_on_plank2 and not on_plank2 and vel_y < 0:
+    plank3_exists      = False
+    plank2_sliding_off = True
+    first_prank_done   = True
+    door_visible       = False
+```
+
+---
+
+## 😈 Prank 2 — "The Fall & Slide"
+
+**Trigger:** Player steps back onto the restored `plank2`
+
+**What happens in 2 parts:**
+
+**Part A — Door teleports:**
+The door animates in 3 phases: fly up → slide left → drop down to top-left corner
+```python
+door_phase = "up2"    # 1. shoot off screen upward
+             "left2"  # 2. slide across the top
+             "down2"  # 3. drop down to corner
+```
+
+**Part B — Plank falls then slides:**
+```python
+plank2_fall_vel += 0.4        # accelerate down each frame
+plank2.y        += int(fall_vel)
+
+# After landing on the floor, slides left/right forever
+plank2.x += plank2_move_dir * 3   # bounces off edges
+```
+
+**Player gets carried along** if standing on the sliding plank:
+```python
+player.x += plank2_move_dir * plank2_move_speed   # dragged with it
+```
+
+**Bonus mechanic:** Jumping off the moving plank gives the player extra air speed (9px instead of 5px) and a bigger jump (`vel_y = -22`) to help reach the door in its new corner position.
+
+---
+
+## 🚪 Door System
+
+- Normally sits to the right of `plank3`
+- During prank 1: hidden (`door_visible = False`)
+- During prank 2: animates to top-left corner in 3 phases
+- Has a pulsing glow effect (4 layered border rects)
+- **Win condition:** `player.colliderect(door)` → triggers win animation
+
+---
+
+## 📺 Alien TV Presenter
+
+One of the most complex visual elements — a fully animated alien news reader drawn entirely with pygame shapes (no images).
+
+### `draw_alien_reader(surface, rx, ry, blink_t)`
+
+| Feature | How it works |
+|---|---|
+| Wobbly tentacles | `math.sin(blink_t * 0.08)` offsets each tentacle up/down |
+| Swaying antennas | `math.sin(blink_t * 0.06)` sways left/right |
+| Blinking eyes | Every 55 frames: draws closed eyelid lines instead of eye circles |
+| Eye look | `math.sin(blink_t * 0.03)` shifts pupils slightly left/right |
+| Mouth | Alternates open/closed every 10 frames (`blink_t // 10 % 2`) |
+| Floating speech bubble | `math.sin(blink_t * 0.15)` gently bobs it up/down |
+
+### Speech Bubble
+Cycles through 12 alien news lines every 110 frames:
+```python
+spoken = spoken_lines[(blink_timer // 110) % len(spoken_lines)]
+```
+Lines include: *"DOOMED!!"*, *"NOT A DRILL"*, *"I QUIT."* etc.
+
+### News Ticker
+Scrolls 10 alien headlines across the bottom of the TV screen:
+```python
+ticker_x -= ticker_speed        # move left each frame
+if ticker_x <= -ticker_total_w:
+    ticker_x = 0.0              # seamless loop
+
+canvas.set_clip(ticker_bar_rect)   # clips text inside TV bounds
+canvas.blit(ticker_surf, ...)
+canvas.set_clip(None)
+```
+Two copies of the ticker are blitted side by side so it never shows a gap.
+
+---
+
+## 🎮 Game Loop Structure (Every Frame)
+
+```
+1. clock.tick(60)          — cap at 60 FPS
+2. blink_timer += 1        — advance animation clock
+3. Draw background         — sky, stars, buildings, TV, floor
+4. Handle events           — QUIT, HOME, RETRY, NEXT LEVEL clicks
+5. Player movement         — A/D move, SPACE jump
+6. Physics                 — apply gravity, move player.y
+7. Collision detection     — floor, plank1, plank2, plank3
+8. Prank 1 logic           — slide detection + plank animation
+9. Prank 2 logic           — fall + door teleport + slide
+10. Win/death detection    — colliderect(door) or player.y <= 0
+11. Win animation          — player shrinks over 60 frames
+12. Death animation        — pieces explode for 90 frames
+13. Level complete         — fireworks spawn every 20 frames
+14. Draw platforms/door    — with shadows and glow effects
+15. Draw player/pieces/FX  — depending on current game state
+16. Draw HUD               — level name + hint text + HOME button
+17. Game over screen       — blinking GAME OVER + RETRY button
+18. Level clear screen     — rainbow LEVEL CLEAR! + NEXT LEVEL button
+19. blit_canvas()          — push everything to the real window
+```
+
+---
+
+## 💥 Death System
+
+**Trigger:** `player.y <= 0` (flew off the top of the screen)
+
+**Animation:** 8 rectangle pieces spawn at the player's position with random velocities:
+```python
+pieces.append({
+    'x': player.x + random.randint(0, 40),
+    'y': player.y + random.randint(0, 40),
+    'vx': random.uniform(-4, 4),    # random horizontal scatter
+    'vy': random.uniform(-6, 0),    # launch upward first
+    'w': random.randint(8, 18),
+    'h': random.randint(8, 18),
+    'col': random.choice([green shades])
+})
+```
+After 90 frames, `game_over = True` and the RETRY button appears.
+
+---
+
+## 🎆 Win & Fireworks System
+
+**Win animation (60 frames):**
+- Door opens gradually (`door_open_amount += 2` per frame)
+- Player shrinks to 0 (`player_shrink -= 1/30` per frame)
+- After 60 frames: `level_completed = True`
+
+**Fireworks (after level complete):**
+```python
+# New burst every 20 frames — 28 particles per burst
+for _ in range(28):
+    ang = random.uniform(0, 6.2832)    # full 360°
+    spd = random.uniform(2.5, 7.5)
+    fireworks.append({
+        'vx': math.cos(ang) * spd,
+        'vy': math.sin(ang) * spd - 1.5,   # slight upward bias
+        'life': random.randint(30, 55)
+    })
+```
+Each particle has gravity applied (`vy += 0.12`) and fades out when `life` reaches 0.
+
+---
+
+## 💡 Context-Sensitive Hint Text
+
+The HUD hint changes automatically based on game state:
+
+| State | Hint shown |
+|---|---|
+| Before prank 1 | *"Your home door is just ahead — jump to it!"* |
+| After prank 1 (falling) | *"Where did everything go? Land somewhere safe..."* |
+| After plank restored | *"The door misplaced — jump back up to it!"* |
+| After prank 2 | *"Ride the yellow shelf — aim for the door!"* |
+
+---
+
+## 🔑 Key Python Concepts Used
+
+| Concept | Where |
+|---|---|
+| `pygame.Rect` + `colliderect()` | All platform and door collision |
+| `nonlocal` keyword | `restore_plank2()` modifies outer scope variables |
+| `math.sin()` | Saucer float, lamp pulse, antenna sway, eye look, bubble float |
+| `random.seed(77)` | Background stars always appear in the same position |
+| `canvas.set_clip()` | Prevents news ticker from drawing outside the TV |
+| State machine (string phases) | `door_phase = "up2" / "left2" / "down2"` |
+| Particle system | Death pieces + fireworks (list of dicts with physics) |
+| `pygame.SRCALPHA` | Semi-transparent overlay for win/game-over darkening |
+| List comprehension filter | `fireworks = [fw for fw in fireworks if fw['life'] > 0]` |
+| Dynamic import | `from Level2 import level_2` only when NEXT is clicked |
+
+---
+
+## 🎯 What To Say In An Interview
+
+> *"Level 1 uses a state-machine approach to sequence two pranks — flag variables track which pranks have triggered, and each frame checks those flags to decide what to animate. The moving platform uses a simple bounce system with direction inversion at screen edges. I also built an animated alien TV presenter entirely from pygame primitives — circles, ellipses, polygons — with blinking eyes, swaying antennas, and a speech bubble that cycles through scripted lines. The news ticker uses canvas clipping to contain scrolling text inside the TV frame."*
+
+---
+
+*Built by Kartick · Alien Prank Park · Level 1 — Welcome Home · Python + Pygame*
