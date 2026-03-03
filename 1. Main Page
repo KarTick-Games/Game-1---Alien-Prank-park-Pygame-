@@ -1,0 +1,259 @@
+# 🛸 Alien Prank Park — `main.py` Breakdown
+
+> **For interviews & quick revision** — everything I built in this file, explained clearly.
+
+---
+
+## 📌 What Is This File?
+
+`main.py` is the **brain of the entire game**. It does 4 big jobs:
+1. Sets up the window and game loop
+2. Draws all shared visuals (space background, player character, buttons)
+3. Manages the menus (Home, Costume Picker, Level Select)
+4. Handles the save/unlock system
+
+Every level file (`Level1.py` to `Level10.py`) **imports from this file** to use the shared drawing tools and save system.
+
+---
+
+## 🧱 File Structure At a Glance
+
+```
+main.py
+ ├── Imports & pygame.init()
+ ├── DEV MODE toggle
+ ├── Window & canvas setup
+ ├── Scaling helpers         → scale_pos(), blit_canvas(), get_events()
+ ├── Colour constants        → WHITE, BLACK, RED, CYAN ...
+ ├── Font definitions
+ ├── Shared game state       → current_costume, stars[]
+ ├── Save/unlock system      → _load_progress(), _save_progress(), mark_level_complete(), is_level_unlocked()
+ ├── Shared draw functions   → draw_space(), draw_player(), draw_button()
+ ├── costume_menu()          → screen to pick your character skin
+ ├── home_screen()           → main title screen
+ ├── level_select()          → act tabs + level grid
+ └── Entry point             → if __name__ == "__main__": home_screen()
+```
+
+---
+
+## ⚙️ DEV MODE Toggle
+
+```python
+DEVELOPER_MODE = False  # True = all levels unlocked (for testing)
+```
+
+**Why I built this:**
+- While building the game, I needed to jump to any level instantly without playing through all previous ones
+- Setting `DEVELOPER_MODE = True` skips all unlock gates
+- Setting it back to `False` restores normal locked progression for players
+- A small orange badge appears on screen so I always know which mode I'm in
+
+---
+
+## 🖥️ Window & Virtual Canvas System
+
+```python
+VWIDTH, VHEIGHT = 1000, 600        # virtual resolution I draw on
+canvas = pygame.Surface(...)        # internal drawing surface
+screen = pygame.display.set_mode(..., pygame.RESIZABLE)  # real window
+```
+
+**The Problem I Solved:**
+If I draw directly on the screen, the game breaks when the user resizes the window — buttons move, characters shift position, everything goes wrong.
+
+**My Solution — Virtual Canvas:**
+- I always draw everything on a fixed 1000×600 surface called `canvas`
+- Then I scale that canvas to fit whatever size the real window is
+- The player can resize the window freely and everything stays in the right place
+
+**3 helper functions that make this work:**
+
+| Function | What it does |
+|---|---|
+| `scale_pos(pos)` | Converts real mouse coordinates → virtual canvas coordinates |
+| `blit_canvas()` | Scales canvas → fits real window with black bars (letterbox) |
+| `get_events()` | Grabs all pygame events and fixes mouse positions using `scale_pos` |
+
+---
+
+## 🎨 Colour Constants & Fonts
+
+```python
+WHITE = (255, 255, 255)
+CYAN  = (0, 220, 220)
+# ... 16 colours total
+```
+
+- Defined once at the top, used everywhere in the file
+- Avoids typing raw RGB numbers repeatedly — makes code readable
+- 9 font sizes defined for different UI purposes (titles, buttons, HUD text, small labels)
+
+---
+
+## 💾 Save & Unlock System
+
+**This was one of the most important systems I designed.**
+
+### How it works:
+- When a player finishes a level, `mark_level_complete(level_num)` is called
+- That level number gets saved to a file called `game_save.json` on the player's computer
+- Next time they open the game, `_load_progress()` reads that file
+- `is_level_unlocked(level_num)` checks: *"Has the player finished the previous level?"*
+
+### The 4 functions:
+
+```python
+_load_progress()           # Reads game_save.json → returns a set of completed level numbers
+_save_progress(completed)  # Writes completed levels back to game_save.json
+mark_level_complete(n)     # Adds level n to completed set and saves
+is_level_unlocked(n)       # Returns True if level n-1 is in completed set (or DEV_MODE is on)
+```
+
+### Save file format (`game_save.json`):
+```json
+{
+  "completed": [1, 2, 3, 4]
+}
+```
+
+### Key design decisions:
+- Used `json` (not a database) — simple, readable, works on any OS
+- Used `os.path.abspath(__file__)` so the save file always sits next to `main.py`, not in a random folder
+- `try/except` around every file operation — if the file is missing or corrupted, the game doesn't crash, it just starts fresh
+- `_save_progress()` loads existing data before writing, so it never accidentally deletes other saved keys
+
+---
+
+## 🌌 draw_space()
+
+```python
+def draw_space():
+    canvas.fill((10, 10, 30))       # dark navy background
+    for s in stars:
+        pygame.draw.circle(...)     # draw each star
+        s[1] += 1                   # move star downward
+        if s[1] > VHEIGHT:          # if off screen, reset to top
+            s[0] = random.randint(0, VWIDTH)
+            s[1] = 0
+```
+
+- 120 stars are placed randomly when the game starts
+- Every frame, each star moves down 1 pixel
+- When a star goes off the bottom, it reappears at a random position at the top
+- Creates an infinite scrolling space effect with zero extra files
+
+---
+
+## 🧑‍🎤 draw_player() — 9 Costumes, 1 Function
+
+**This was a fun design challenge.** I needed to draw 9 different character looks without writing 9 separate functions.
+
+**My solution — palette dictionary:**
+```python
+palettes = {
+    "alien":    dict(body=(50,200,80), ear=..., eye=..., pupil=..., ...),
+    "santa":    dict(body=RED,         ear=..., ...),
+    "robot":    dict(body=(170,170,190), ...),
+    # ... 9 costumes total
+}
+p = palettes.get(costume, palettes["alien"])  # pick the right colours
+```
+
+- The base body shape is always the same (rectangle + ear triangles + eyes + nose + mouth)
+- The colours come from the palette lookup
+- Each costume then gets its own **detail overlay** drawn on top (e.g. Santa gets a hat, Robot gets a chest panel, Clown gets rainbow hair)
+- Adding a new costume = just add one entry to the dictionary + one `elif` block for its details
+
+---
+
+## 🏠 home_screen()
+
+The first screen the player sees. Contains:
+- Animated star background (via `draw_space()`)
+- Game title text
+- A live character preview (via `draw_player()`) showing the current costume
+- 3 buttons: PLAY → goes to `level_select()`, COSTUME → goes to `costume_menu()`, QUIT → exits
+- Dev mode badge (only visible when `DEVELOPER_MODE = True`)
+
+**Game loop pattern used here (same in all screens):**
+```python
+while True:
+    clock.tick(FPS)       # limit to 60 frames per second
+    draw_space()          # redraw background every frame
+    # ... draw all UI ...
+    for event in get_events():
+        # handle clicks
+    blit_canvas()         # push canvas to real window
+```
+
+---
+
+## 🎭 costume_menu()
+
+- Displays all 9 costumes in a grid
+- Each box shows a live preview of that costume using `draw_player()`
+- Currently selected costume gets a yellow border
+- Clicking a costume sets `current_costume` (a global variable) and returns
+- Uses `divmod(i, cols)` to calculate grid row and column positions automatically
+
+---
+
+## 🗺️ level_select()
+
+The most complex screen in the file. Features:
+
+### Act Tabs
+- 5 acts displayed as tabs at the top
+- Act 1 is unlocked, Acts 2–5 show a 🔒 LOCKED state
+- Selected tab gets a glowing coloured highlight
+- Each act has its own colour theme
+
+### Level Grid
+- 10 levels shown in a 5×2 grid per act
+- Each level cell is either **locked** or **unlocked** based on `is_level_unlocked()`
+- Unlocked cells pulse and glow using a sin wave animation:
+  ```python
+  pulse = 0.7 + 0.3 * math.sin(blink_timer * 0.06 + li * 0.5)
+  ```
+- Completed levels show a green ✓ badge
+- Locked levels show a hint: *"Complete L3 first"*
+
+### Clicking a Level
+```python
+fn = level_fns.get(lnum)   # gets level_1, level_2, etc.
+if fn:
+    fn()                   # runs that level's function
+```
+
+### Reset Button
+- Only shown when `DEVELOPER_MODE = False`
+- Wipes `game_save.json` back to empty so the player can start over
+
+---
+
+## 🔑 Key Python Concepts Used
+
+| Concept | Where I used it |
+|---|---|
+| `global` keyword | `costume_menu()` modifies `current_costume` |
+| Dictionary lookup | `palettes.get(costume)` in `draw_player()` |
+| List comprehension | `stars = [[random.randint(...), ...] for _ in range(120)]` |
+| `divmod()` | Grid layout in `costume_menu()` |
+| `math.sin()` | Pulsing glow animation in level select |
+| `json.load / dump` | Reading and writing save file |
+| `os.path.abspath` | Cross-platform save file location |
+| `try / except` | Safe file reading — game won't crash if save is missing |
+| `pygame.Rect` | All clickable buttons and level cells |
+| `rect.collidepoint(pos)` | Detecting mouse clicks on buttons |
+| Dynamic imports | `from Level1 import level_1` inside `level_select()` |
+
+---
+
+## 🎯 What To Say In An Interview
+
+> *"I built a 2D game in Python using Pygame. The main.py handles the entire engine layer — a virtual canvas scaling system so the game is resolution-independent, a JSON-based save system that persists level progress between sessions, and a palette-driven character renderer that draws 9 different costumes from a single function using dictionary lookups. I also added a developer mode toggle so I could test any level instantly during development."*
+
+---
+
+*Built by Kartick · Alien Prank Park · Python + Pygame*
